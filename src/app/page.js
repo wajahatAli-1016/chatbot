@@ -159,6 +159,21 @@ export default function Home() {
         <h1>🔍 AI Research Assistant</h1>
       </div>
 
+      {chatHistory.length === 0 && !isLoading && (
+        <div className={styles.resultContainer}>
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}>🤖</div>
+            <h2 className={styles.emptyTitle}>Start chat with AI</h2>
+            <p className={styles.emptySubtitle}>Ask anything to begin. Here are some ideas:</p>
+            <ul className={styles.emptyTips}>
+              <li>“Summarize the latest news about AI safety”</li>
+              <li>“What are Reddit opinions on electric cars recently?”</li>
+              <li>“Give key facts about quantum computing in 2025”</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
       {chatHistory.length > 0 && (
         <div className={styles.chatContainer}>
           {chatHistory.map((message, index) => (

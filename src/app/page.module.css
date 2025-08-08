@@ -187,6 +187,43 @@
   word-wrap: break-word;
 }
 
+.emptyState {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.emptyIcon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.emptyTitle {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+  font-weight: 700;
+}
+
+.emptySubtitle {
+  margin: 0 0 1rem 0;
+  color: #6b7280;
+}
+
+.emptyTips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.emptyTips li {
+  color: #374151;
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+}
+
 .resultHeader {
   display: flex;
   justify-content: space-between;
