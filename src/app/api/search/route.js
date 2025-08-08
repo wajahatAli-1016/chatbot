@@ -23,6 +23,105 @@ export async function POST(req) {
         .trim()
         .slice(0, 500);
 
+    // Detect URLs in the query
+    const extractUrls = (text) => {
+      const matches = [...(text || "").matchAll(/https?:\/\/[^\s)]+/gi)];
+      return Array.from(new Set(matches.map((m) => m[0])));
+    };
+
+    // StackOverflow profile (Stack Exchange API)
+    const fetchStackOverflowProfile = async (url) => {
+      try {
+        const u = new URL(url);
+        if (!/stackoverflow\.com$/i.test(u.hostname)) return null;
+        const m = u.pathname.match(/\/users\/(\d+)/);
+        if (!m) return null;
+        const userId = m[1];
+        const key = process.env.STACKEXCHANGE_KEY; // optional
+        const base = "https://api.stackexchange.com/2.3";
+        const userRes = await fetch(`${base}/users/${userId}?site=stackoverflow${key ? `&key=${key}` : ""}`);
+        if (!userRes.ok) return null;
+        const userJson = await userRes.json();
+        const user = userJson.items?.[0];
+        if (!user) return null;
+        const ansRes = await fetch(`${base}/users/${userId}/answers?order=desc&sort=votes&pagesize=5&site=stackoverflow${key ? `&key=${key}` : ""}`);
+        const ansJson = ansRes.ok ? await ansRes.json() : { items: [] };
+        const answers = ansJson.items || [];
+        const ansSummary = answers.map((a, i) => `- Top Answer #${i + 1} (score: ${a.score})`).join("\n");
+        const snippet = `Display Name: ${user.display_name}\nReputation: ${user.reputation}\nBadges: gold ${user.badge_counts?.gold || 0}, silver ${user.badge_counts?.silver || 0}, bronze ${user.badge_counts?.bronze || 0}\nLocation: ${user.location || ""}\nTop Answers:\n${ansSummary}`;
+        return { source: "StackOverflow", title: `StackOverflow Profile of ${user.display_name}`, snippet: clean(snippet).slice(0, 1200), url };
+      } catch { return null; }
+    };
+
+    // Twitter/X profile via API v2 if token provided; else fallback
+    const fetchTwitterProfile = async (url) => {
+      try {
+        const u = new URL(url);
+        if (!/(?:twitter|x)\.com$/i.test(u.hostname)) return null;
+        const parts = u.pathname.split('/').filter(Boolean);
+        const username = parts[0];
+        if (!username || username.toLowerCase() === 'i' || username.toLowerCase() === 'home') return null;
+        const token = process.env.X_BEARER_TOKEN;
+        if (!token) return null; // require token for reliable results
+        const userRes = await fetch(`https://api.twitter.com/2/users/by/username/${username}?user.fields=public_metrics,description,location,verified`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!userRes.ok) return null;
+        const user = (await userRes.json()).data;
+        if (!user?.id) return null;
+        const tweetsRes = await fetch(`https://api.twitter.com/2/users/${user.id}/tweets?max_results=5&tweet.fields=public_metrics,created_at`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const tweetsJson = tweetsRes.ok ? await tweetsRes.json() : { data: [] };
+        const tweets = tweetsJson.data || [];
+        const tweetLines = tweets.map(t => `- ${new Date(t.created_at).toISOString().slice(0,10)} (${t.public_metrics.like_count || 0}❤): ${clean(t.text)}`).join("\n");
+        const snippet = `Name: @${user.username}${user.verified ? " (verified)" : ""}\nBio: ${clean(user.description)}\nLocation: ${user.location || ""}\nFollowers: ${user.public_metrics?.followers_count || 0}, Following: ${user.public_metrics?.following_count || 0}\nRecent Tweets:\n${tweetLines}`;
+        return { source: "Twitter", title: `Twitter Profile @${user.username}`, snippet: clean(snippet).slice(0, 1200), url };
+      } catch { return null; }
+    };
+
+    // Facebook Page/Profile (requires Graph token; best-effort for public pages)
+    const fetchFacebookProfile = async (url) => {
+      const token = process.env.FB_GRAPH_TOKEN;
+      if (!token) return null;
+      try {
+        const u = new URL(url);
+        if (!/facebook\.com$/i.test(u.hostname)) return null;
+        const slug = u.pathname.split('/').filter(Boolean)[0];
+        if (!slug) return null;
+        // Try page lookup by username/ID
+        const base = 'https://graph.facebook.com/v19.0';
+        const pageRes = await fetch(`${base}/${encodeURIComponent(slug)}?fields=name,about,fan_count,followers_count,link&access_token=${encodeURIComponent(token)}`);
+        if (!pageRes.ok) return null;
+        const page = await pageRes.json();
+        const postsRes = await fetch(`${base}/${encodeURIComponent(slug)}/posts?fields=message,created_time,permalink_url&limit=5&access_token=${encodeURIComponent(token)}`);
+        const postsJson = postsRes.ok ? await postsRes.json() : { data: [] };
+        const posts = postsJson.data || [];
+        const postLines = posts.map(p => `- ${new Date(p.created_time).toISOString().slice(0,10)}: ${clean(p.message)}`).join('\n');
+        const snippet = `Name: ${page.name}\nFollowers: ${page.followers_count || page.fan_count || ''}\nAbout: ${clean(page.about)}\nRecent Posts:\n${postLines}`;
+        return { source: 'Facebook', title: `Facebook Page ${page.name}`, snippet: clean(snippet).slice(0, 1200), url };
+      } catch { return null; }
+    };
+
+    const fetchReadableFromUrl = async (rawUrl) => {
+      try {
+        // Prefer domain-specific handlers
+        const so = await fetchStackOverflowProfile(rawUrl); if (so) return so;
+        const tw = await fetchTwitterProfile(rawUrl); if (tw) return tw;
+        const fb = await fetchFacebookProfile(rawUrl); if (fb) return fb;
+        // Fallback readability proxy (works for many public pages)
+        const encoded = encodeURIComponent(rawUrl);
+        const readerUrl = `https://r.jina.ai/http://${encoded.replace(/^https?:\/\//i, "")}`;
+        const res = await fetch(readerUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        if (!res.ok) return null;
+        const text = await res.text();
+        const cleaned = clean(text).slice(0, 1200);
+        if (!cleaned) return null;
+        const host = (() => { try { return new URL(rawUrl).hostname; } catch { return "link"; } })();
+        return { source: host, title: `Content from ${host}`, snippet: cleaned, url: rawUrl };
+      } catch { return null; }
+    };
+
     const fetchReddit = async () => {
       try {
         const res = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&limit=5&sort=relevance`);
@@ -117,6 +216,9 @@ export async function POST(req) {
       }
     };
 
+    const urlsInQuery = extractUrls(query);
+    const directProfiles = (await Promise.all(urlsInQuery.map(fetchReadableFromUrl))).filter(Boolean);
+
     const [reddit, hn, wiki, yt, news] = await Promise.all([
       fetchReddit(),
       fetchHN(),
@@ -125,7 +227,7 @@ export async function POST(req) {
       fetchNewsApi(),
     ]);
 
-    const allSources = [...reddit, ...hn, ...wiki, ...yt, ...news].filter((s) => s.title && s.url);
+    const allSources = [...directProfiles, ...reddit, ...hn, ...wiki, ...yt, ...news].filter((s) => s.title && s.url);
 
     // 2) Build a compact, cleaned corpus for the LLM
     const sourcesText = allSources
@@ -218,3 +320,4 @@ export async function POST(req) {
     }, { status: 500 });
   }
 }
+

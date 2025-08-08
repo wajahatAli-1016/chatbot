@@ -1,15 +1,16 @@
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
-  min-height: 100vh;
+  padding: 2rem 2rem 0 2rem;
+  height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   position: relative;
   background-color: white;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
 }
+
 
 .header {
   position: fixed;
@@ -57,6 +58,40 @@
   margin: 0 auto;
 }
 
+.editBanner {
+  position: relative;
+  top: -6px;
+  left: 0;
+  font-size: 0.8rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cancelEdit {
+  background: #000000;
+  color: #ffffff;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 20px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.cancelEdit:hover:not(:disabled) {
+  background: #111111;
+}
+
+.cancelEdit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .inputWrapper {
   position: relative;
   flex: 1;
@@ -81,6 +116,8 @@
   background: white;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   transition: all 0.3s ease;
+  color: #111111;
+  caret-color: #111111;
 }
 
 .searchInput:focus {
@@ -92,6 +129,11 @@
 .searchInput:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.searchInput::placeholder {
+  color: #6b7280;
+  opacity: 1; /* Ensure consistent placeholder visibility */
 }
 
 .searchButton {
@@ -160,6 +202,35 @@
   opacity: 0.8;
 }
 
+/* Inline typing indicator */
+.typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #9ca3af;
+  border-radius: 50%;
+  display: inline-block;
+  animation: blink 1.4s infinite both;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0% { opacity: 0.2; transform: translateY(0); }
+  20% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0.2; transform: translateY(0); }
+}
+
 .errorContainer {
   background: rgba(231, 76, 60, 0.1);
   border: 1px solid rgba(231, 76, 60, 0.3);
@@ -176,15 +247,18 @@
 }
 
 .resultContainer {
+  position: fixed;
+  top: 80px; /* below header */
+  left: 50%;
+  transform: translateX(-50%);
   background: white;
   border-radius: 20px;
   padding: 2rem;
-  margin: 1rem;
-  margin-bottom: 2rem;
-  margin-top: 60px;
   width: 71%;
   overflow: hidden;
   word-wrap: break-word;
+  scrollbar-width: none;
+
 }
 
 .emptyState {
@@ -292,12 +366,26 @@
 }
 
 .chatContainer {
-  margin: 1rem;
-  margin-bottom: 2rem;
-  margin-top: 60px;
+  position: fixed;
+  top: 80px; /* below header */
+  left: 50%;
+  transform: translateX(-50%);
   width: 71%;
+  bottom: 110px; /* above input */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 1rem;
   word-wrap: break-word;
-  min-height: 200px;
+  /* Hide scrollbar (Firefox) */
+  scrollbar-width: none;
+  /* Hide scrollbar (IE/Edge legacy) */
+  -ms-overflow-style: none;
+}
+
+/* Hide scrollbar (WebKit: Chrome/Safari/Edge) */
+.chatContainer::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
 }
 
 .chatMessage {
@@ -359,6 +447,24 @@
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.editButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.editButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .messageAuthor {

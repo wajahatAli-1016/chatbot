@@ -1,7 +1,7 @@
 "use client"
 import { useState, useRef } from "react";
 import styles from "./page.module.css"
-import { FaArrowUp, FaSearch, FaNewspaper, FaGlobe, FaReddit, FaDownload } from "react-icons/fa";
+import { FaArrowUp, FaSearch, FaNewspaper, FaGlobe, FaReddit, FaDownload, FaEdit } from "react-icons/fa";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -12,6 +12,8 @@ export default function Home() {
   const [searchHistory, setSearchHistory] = useState([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
   const resultRef = useRef(null);
   const messageRefs = useRef({});
 
@@ -27,17 +29,31 @@ export default function Home() {
     const question = inputValue.trim();
     setIsLoading(true);
     setError("");
-    setInputValue("");
+    
+    if (isEditing && editingMessageId) {
+      // Apply edit: update the user message and truncate any messages after it
+      setInputValue("");
+      setChatHistory(prev => {
+        const index = prev.findIndex(m => m.id === editingMessageId);
+        if (index === -1) return prev;
+        const updatedUser = { ...prev[index], content: question, timestamp: new Date() };
+        return [...prev.slice(0, index), updatedUser];
+      });
+      setIsEditing(false);
+      setEditingMessageId(null);
+    } else {
+      setInputValue("");
 
-    // Add user question to chat history immediately
-    const userMessage = {
-      id: Date.now(),
-      type: 'user',
-      content: question,
-      timestamp: new Date()
-    };
-
-    setChatHistory(prev => [...prev, userMessage]);
+      // Add user question to chat history immediately
+      const userMessage = {
+        id: Date.now(),
+        type: 'user',
+        content: question,
+        timestamp: new Date()
+      };
+  
+      setChatHistory(prev => [...prev, userMessage]);
+    }
 
     try {
       const res = await fetch("/api/search", {
@@ -75,6 +91,21 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const startEditMessage = (messageId) => {
+    const message = chatHistory.find(m => m.id === messageId);
+    if (!message || message.type !== 'user') return;
+    setInputValue(message.content);
+    setIsEditing(true);
+    setEditingMessageId(messageId);
+    setError("");
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditingMessageId(null);
+    setInputValue("");
   };
 
   const formatResult = (text) => {
@@ -174,7 +205,7 @@ export default function Home() {
         </div>
       )}
 
-      {chatHistory.length > 0 && (
+      {(chatHistory.length > 0 || isLoading) && (
         <div className={styles.chatContainer}>
           {chatHistory.map((message, index) => (
             <div key={message.id} className={styles.chatMessage}>
@@ -201,6 +232,16 @@ export default function Home() {
                   <span className={styles.messageTime}>
                     {message.timestamp.toLocaleTimeString()}
                   </span>
+                  {message.type === 'user' && index === (() => { for (let i = chatHistory.length - 1; i >= 0; i--) { if (chatHistory[i].type === 'user') return i; } return -1; })() && (
+                    <button 
+                      onClick={() => startEditMessage(message.id)}
+                      disabled={isLoading}
+                      className={styles.editButton}
+                      title="Edit and resend"
+                    >
+                      <FaEdit /> Edit
+                    </button>
+                  )}
                   {message.type === 'ai' && message.model && (
                     <span className={styles.modelInfo}>Powered by {message.model}</span>
                   )}
@@ -231,11 +272,33 @@ export default function Home() {
               </div>
             </div>
           ))}
+          {isLoading && (
+            <div className={styles.chatMessage}>
+              <div className={styles.messageAvatar}>
+                <div className={styles.aiAvatar}>🤖</div>
+              </div>
+              <div className={styles.messageContent}>
+                <div className={styles.messageHeader}>
+                  <span className={styles.messageAuthor}>AI Assistant</span>
+                </div>
+                <div className={`${styles.messageText} ${styles.typing}`}>
+                  <span className={styles.dot}></span>
+                  <span className={styles.dot}></span>
+                  <span className={styles.dot}></span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       <div className={styles.searchContainer}>
         <form onSubmit={handleSubmit} className={styles.searchForm}>
+          {isEditing && (
+            <div className={styles.editBanner}>
+              <button type="button" className={styles.cancelEdit} onClick={cancelEdit} disabled={isLoading}>Cancel</button>
+            </div>
+          )}
           <div className={styles.inputWrapper}>
             <FaSearch className={styles.searchIcon} />
             <input 
@@ -267,13 +330,7 @@ export default function Home() {
         </div>
       )}
 
-      {isLoading && (
-        <div className={styles.loadingContainer}>
-          <div className={styles.spinner}></div>
-          <p>🔍 Searching across multiple sources...</p>
-          <p className={styles.loadingSubtext}>This may take a few moments</p>
-        </div>
-      )}
+      {/* Removed bulky loading panel in favor of inline typing indicator */}
 
      
     </div>
